@@ -45,10 +45,19 @@ function pbcdist(x₁::T, x₂::T, L::T) where T <: AbstractFloat
     end
 end
 
+"""
+    dist(p₁::Tuple{T, T}, p₂::Tuple{T, T}, L::T) where T <: AbstractFloat
+Compute the minimum image distance between pair of particles in a box of size `L`.
+"""
 function dist(p₁::Tuple{T, T}, p₂::Tuple{T, T}, L::T) where T <: AbstractFloat
     return (pbcdist(p₁[1], p₂[1], L), pbcdist(p₁[2], p₂[2], L))
 end
 
+"""
+    deltafill!(𝜹::Vector{Tuple{T, T}}, conf::Config, L::T, i::Int, j::Int,
+        ::Type{RO}) where T <: AbstractFloat
+Compute the displacement of particles `i` and `j`in the random (RO) model.
+"""
 function deltafill!(𝜹::Vector{Tuple{T, T}}, conf::Config, L::T, i::Int, j::Int,
     ::Type{RO}) where T <: AbstractFloat
     #Random kick
@@ -56,6 +65,11 @@ function deltafill!(𝜹::Vector{Tuple{T, T}}, conf::Config, L::T, i::Int, j::In
     nothing
 end
 
+"""
+    deltafill!(𝜹::Vector{Tuple{T, T}}, conf::Config, L::T, i::Int, j::Int,
+        ::Type{BRO}) where T <: AbstractFloat
+Compute the displacement of particles `i` and `j`in the biased (BRO) model.
+"""
 function deltafill!(𝜹::Vector{Tuple{T, T}}, conf::Config, L::T, i::Int, j::Int,
     ::Type{BRO}) where T <: AbstractFloat
     #Evaluate distance (with PBC)
@@ -66,6 +80,12 @@ function deltafill!(𝜹::Vector{Tuple{T, T}}, conf::Config, L::T, i::Int, j::In
     nothing
 end
 
+"""
+    linkedlist(𝜹::Vector{Tuple{T, T}}, conf::Config, par::Parameters,
+        head::Vector{Int}, lscl::Vector{Int},
+        model::Type{W} = RO) where T <: AbstractFloat where W <: Model
+Implement the linked-list algorithm to check for overlapping particles and compute displacements.
+"""
 function linkedlist(𝜹::Vector{Tuple{T, T}}, conf::Config, par::Parameters,
         head::Vector{Int}, lscl::Vector{Int},
         model::Type{W} = RO) where T <: AbstractFloat where W <: Model
@@ -154,6 +174,12 @@ function linkedlist(𝜹::Vector{Tuple{T, T}}, conf::Config, par::Parameters,
     return active
 end
 
+"""
+    initialconf(par::Parameters, 𝐗₀::Vector{Tuple{T, T}},
+        𝜹::Vector{Tuple{T, T}}, head::Vector{Int}, lscl::Vector{Int},
+        model::Type{W} = RO) where T <: AbstractFloat where W <: Model
+Return the initial configuration.
+"""
 function initialconf(par::Parameters, 𝐗₀::Vector{Tuple{T, T}},
         𝜹::Vector{Tuple{T, T}}, head::Vector{Int}, lscl::Vector{Int},
         model::Type{W} = RO) where T <: AbstractFloat where W <: Model
@@ -169,6 +195,11 @@ function initialconf(par::Parameters, 𝐗₀::Vector{Tuple{T, T}},
     return conf
 end
 
+"""
+    initialmeas(par::Parameters, conf::Config, sampletimes::Vector{Int},
+        Mp::Int, T::DataType)
+Return the initial measure.
+"""
 function initialmeas(par::Parameters, conf::Config, sampletimes::Vector{Int},
     Mp::Int, T::DataType)
     #Initialisation
@@ -180,6 +211,12 @@ function initialmeas(par::Parameters, conf::Config, sampletimes::Vector{Int},
     return meas
 end
 
+"""
+    update!(conf::Config, par::Parameters, 𝜹::Vector{Tuple{T, T}},
+        head::Vector{Int}, lscl::Vector{Int},
+        model::Type{W} = RO) where T <: AbstractFloat where W <: Model
+Updates configuration `conf` at each time step.
+"""
 function update!(conf::Config, par::Parameters, 𝜹::Vector{Tuple{T, T}},
         head::Vector{Int}, lscl::Vector{Int},
         model::Type{W} = RO) where T <: AbstractFloat where W <: Model
@@ -199,6 +236,11 @@ function update!(conf::Config, par::Parameters, 𝜹::Vector{Tuple{T, T}},
     nothing
 end
 
+"""
+    whentomeasure(t₀::Int, tmax::Int, nmeas::Int;
+        slope::T = 1.0) where T <: AbstractFloat
+Define when to store samples.
+"""
 function whentomeasure(t₀::Int, tmax::Int, nmeas::Int;
         slope::T = 1.0) where T <: AbstractFloat
     #Create sampletimes and fix extrema
@@ -213,6 +255,23 @@ function whentomeasure(t₀::Int, tmax::Int, nmeas::Int;
     return unique!(reverse!(sampletimes))
 end
 
+"""
+    simulation(N::Int,     #number of particles
+        tmax::Int,              #number of time steps
+        L::T;                   #length of the box
+        t₀::Int = 0,            #termalisation time
+        nmeas::Int = Int(floor(log(2, (tmax - t₀)))), #number of measurements (approximate)
+        slope::T = 1.0,         #slope of the sampling
+        Δm::Int = 1,            #intervals to store full configurations
+        sampletimes::Vector{Int} = whentomeasure(t₀, tmax, nmeas, slope = slope), #optional custom sampletimes
+        σ::T = 1.0,             #particle diameter
+        ϵ::T = 0.5,             #maximum size of the kick
+        κ::T = 1.0,             #blending between BRO and RO
+        η::T = 0.0,             #polydispersity
+        𝐗₀::Vector{Tuple{T, T}} = [L .* map(rand, (T, T)) for i ∈ 1 : N], #initial configuration
+        model::Type{W} = RO) where T <: AbstractFloat where W <: Model
+Main code for a single simulation.
+"""
 function simulation(N::Int,     #number of particles
         tmax::Int,              #number of time steps
         L::T;                   #length of the box
@@ -276,6 +335,25 @@ function simulation(N::Int,     #number of particles
 
 end
 
+"""
+    runs(n::Int,   #number of simulations
+        N::Int,         #number of particles
+        tmax::Int,      #number of time steps
+        L::T;           #length of the box
+        t₀::Int = 0,    #termalisation time
+        nmeas::Int = Int(floor(log(2, (tmax - t₀)))), #number of measurements (approximate)
+        Δm::Int = 10,   #intervals to store full configurations
+        sampletimes::Vector{Int} = whentomeasure(t₀, tmax, nmeas), #optional custom sampletimes
+        σ::T = 1.0,     #particle diameter
+        ϵ::T = 0.5,     #maximum size of the kick
+        κ::T = 1.0,     #blending between BRO and RO
+        η::T = 0.0,     #polydispersity
+        𝐗₀::Vector{Tuple{T, T}} = [L .* map(rand, (T, T)) for i ∈ 1 : N], #initial configuration
+        model::Type{W} = RO,    #dynamical rule
+        verbose::Bool = false,  #debug
+        ncores::Int = Threads.nthreads()) where T <: AbstractFloat where W <: Model
+Run `n`simulations simultaneously using `ncores` processors.
+"""
 function runs(n::Int,   #number of simulations
         N::Int,         #number of particles
         tmax::Int,      #number of time steps
