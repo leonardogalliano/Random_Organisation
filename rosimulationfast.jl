@@ -53,30 +53,21 @@ function dist(p₁::Tuple{T, T}, p₂::Tuple{T, T}, L::T) where T <: AbstractFlo
     return (pbcdist(p₁[1], p₂[1], L), pbcdist(p₁[2], p₂[2], L))
 end
 
-"""
-    deltafill!(𝜹::Vector{Tuple{T, T}}, conf::Config, L::T, i::Int, j::Int,
-        ::Type{RO}) where T <: AbstractFloat
-Compute the displacement of particles `i` and `j`in the random (RO) model.
-"""
-function deltafill!(𝜹::Vector{Tuple{T, T}}, conf::Config, L::T, i::Int, j::Int,
+function deltafill!(𝜹::Vector{Tuple{T, T}}, conf::Config, L::T, i::Int, j::Int, ϵ::T,
     ::Type{RO}) where T <: AbstractFloat
     #Random kick
     𝜹[i], 𝜹[j] = map(randn, (T, T)), map(randn, (T, T))
     nothing
 end
 
-"""
-    deltafill!(𝜹::Vector{Tuple{T, T}}, conf::Config, L::T, i::Int, j::Int,
-        ::Type{BRO}) where T <: AbstractFloat
-Compute the displacement of particles `i` and `j`in the biased (BRO) model.
-"""
-function deltafill!(𝜹::Vector{Tuple{T, T}}, conf::Config, L::T, i::Int, j::Int,
+function deltafill!(𝜹::Vector{Tuple{T, T}}, conf::Config, L::T, i::Int, j::Int, ϵ::T,
     ::Type{BRO}) where T <: AbstractFloat
     #Evaluate distance (with PBC)
     dij = dist(conf.pos[i], conf.pos[j], L)
+    dnij = rand(Uniform(0.0, ϵ)) .* dij ./ norm(dij)
     #Update 𝜹
-    𝜹[i] = 𝜹[i] .+ dij
-    𝜹[j] = 𝜹[j] .- dij
+    𝜹[i] = 𝜹[i] .+ dnij
+    𝜹[j] = 𝜹[j] .- dnij
     nothing
 end
 
@@ -146,7 +137,7 @@ function linkedlist(𝜹::Vector{Tuple{T, T}}, conf::Config, par::Parameters,
                         #Check for collisions
                         if norm(Δr) ≤ (conf.sizes[i] + conf.sizes[j]) / 2.0
                             #Update 𝜹 for active particles
-                            deltafill!(𝜹, conf, par.L, i, j, model)
+                            deltafill!(𝜹, conf, par.L, i, j, par.ϵ, model)
                         end
                     end
                     j = lscl[j]
@@ -156,20 +147,8 @@ function linkedlist(𝜹::Vector{Tuple{T, T}}, conf::Config, par::Parameters,
         end
     end
 
-    #REGULARISATION
     #Check for active particles
     active = findall(a -> !iszero(a), sum.(𝜹))
-    #Random blend option
-    if !isone(par.κ) && model == BRO
-        @inbounds for i ∈ active
-            𝜹[i] = par.κ .* 𝜹[i] .+ (1 - par.κ) .* map(randn, (T, T))
-        end
-    end
-    #Normalisation
-    @inbounds for i ∈ active
-        𝜹[i] = rand(Uniform(0.0, par.ϵ)) .* 𝜹[i] ./ norm(𝜹[i])
-    end
-
     #Return list of actives
     return active
 end
